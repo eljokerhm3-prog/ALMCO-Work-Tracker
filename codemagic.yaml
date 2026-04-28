@@ -1,0 +1,87 @@
+workflows:
+  android-apk:
+    name: ALMCO Work Tracker - Android APK
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      flutter: stable
+      java: 17
+    scripts:
+      - name: Show Flutter version
+        script: |
+          flutter --version
+          flutter doctor -v
+      - name: Regenerate clean Android platform
+        script: |
+          # Fix unsupported/old Gradle projects by creating a fresh Android folder in CI.
+          rm -rf android
+          flutter create --platforms=android --project-name almco_work_tracker .
+      - name: Configure Android package and permissions
+        script: |
+          python3 - <<'PY'
+          from pathlib import Path
+          def replace_file(path, replacements):
+              p = Path(path)
+              if not p.exists():
+                  return
+              s = p.read_text()
+              for a,b in replacements:
+                  s = s.replace(a,b)
+              p.write_text(s)
+
+          # Support Groovy Gradle template
+          p = Path('android/app/build.gradle')
+          if p.exists():
+              s = p.read_text()
+              import re
+              s = re.sub(r'namespace\s+"[^"]+"', 'namespace "com.almco.worktracker"', s)
+              s = re.sub(r'applicationId\s+"[^"]+"', 'applicationId "com.almco.worktracker"', s)
+              if 'com.google.gms.google-services' not in s:
+                  s = s.replace('plugins {', 'plugins {\n    id "com.google.gms.google-services"')
+              p.write_text(s)
+
+          # Support Kotlin Gradle template
+          p = Path('android/app/build.gradle.kts')
+          if p.exists():
+              s = p.read_text()
+              import re
+              s = re.sub(r'namespace\s*=\s*"[^"]+"', 'namespace = "com.almco.worktracker"', s)
+              s = re.sub(r'applicationId\s*=\s*"[^"]+"', 'applicationId = "com.almco.worktracker"', s)
+              if 'com.google.gms.google-services' not in s:
+                  s = s.replace('plugins {', 'plugins {\n    id("com.google.gms.google-services")')
+              p.write_text(s)
+
+          # Add Google Services plugin to project Gradle settings if present.
+          for path in ['android/settings.gradle', 'android/settings.gradle.kts']:
+              p = Path(path)
+              if p.exists():
+                  s = p.read_text()
+                  if 'com.google.gms.google-services' not in s:
+                      if path.endswith('.kts'):
+                          s = s.replace('plugins {', 'plugins {\n    id("com.google.gms.google-services") version "4.4.2" apply false', 1)
+                      else:
+                          s = s.replace('plugins {', 'plugins {\n    id "com.google.gms.google-services" version "4.4.2" apply false', 1)
+                  p.write_text(s)
+
+          # Android permissions.
+          p = Path('android/app/src/main/AndroidManifest.xml')
+          if p.exists():
+              s = p.read_text()
+              perms = '''\n    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />\n    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n'''
+              if 'ACCESS_FINE_LOCATION' not in s:
+                  s = s.replace('<manifest xmlns:android="http://schemas.android.com/apk/res/android">', '<manifest xmlns:android="http://schemas.android.com/apk/res/android">' + perms)
+              p.write_text(s)
+          PY
+      - name: Add Firebase Android config
+        script: |
+          mkdir -p android/app
+          cp google-services.json android/app/google-services.json
+      - name: Install dependencies
+        script: |
+          flutter pub get
+      - name: Build release APK
+        script: |
+          flutter build apk --release
+    artifacts:
+      - build/app/outputs/flutter-apk/app-release.apk
+      - build/app/outputs/flutter-apk/*.apk

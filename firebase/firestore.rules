@@ -1,0 +1,13 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function isAdmin() { return signedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'; }
+    function isEngineer() { return signedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'engineer']; }
+    match /users/{userId} { allow read: if signedIn(); allow write: if isAdmin(); }
+    match /settings/{docId} { allow read: if signedIn(); allow write: if isAdmin(); }
+    match /config/{docId} { allow read: if signedIn(); allow write: if isAdmin(); }
+    match /reports/{reportId} { allow read: if signedIn(); allow create: if signedIn(); allow update, delete: if isAdmin(); }
+    match /documents/{docId} { allow read: if signedIn(); allow create: if isEngineer(); allow update, delete: if isAdmin(); }
+  }
+}

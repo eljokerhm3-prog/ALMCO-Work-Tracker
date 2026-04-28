@@ -1,0 +1,29 @@
+name: almco_work_tracker
+description: ALMCO Work Tracker - construction reports, documents, approvals, progress.
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  firebase_core: ^3.6.0
+  firebase_auth: ^5.3.1
+  cloud_firestore: ^5.4.4
+  firebase_storage: ^12.3.2
+  image_picker: ^1.1.2
+  file_picker: ^8.1.2
+  printing: ^5.13.3
+  pdf: ^3.11.1
+  signature: ^5.5.0
+  intl: ^0.19.0
+  permission_handler: ^11.3.1
+  geolocator: ^13.0.1
+  firebase_messaging: ^15.1.3
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/logo.png

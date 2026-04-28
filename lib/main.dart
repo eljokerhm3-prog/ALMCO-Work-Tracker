@@ -1,0 +1,364 @@
+import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
+import 'firebase_service.dart';
+import 'location_service.dart';
+import 'notification_service.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await FirebaseService.instance.seedInitialData();
+  await NotificationService.instance.setupForUser(userId: 'hamada-admin');
+  runApp(const ALMCOApp());
+}
+
+class ALMCOApp extends StatefulWidget {
+  const ALMCOApp({super.key});
+  @override
+  State<ALMCOApp> createState() => _ALMCOAppState();
+}
+
+class _ALMCOAppState extends State<ALMCOApp> {
+  Locale _locale = const Locale('en');
+
+  void changeLanguage(Locale locale) => setState(() => _locale = locale);
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: AppData.appName,
+      locale: _locale,
+      theme: ThemeData(
+        useMaterial3: true,
+        colorSchemeSeed: const Color(0xFF008C95),
+        scaffoldBackgroundColor: const Color(0xFFF6F8FA),
+      ),
+      home: DashboardScreen(onLanguageChanged: changeLanguage),
+    );
+  }
+}
+
+class AppData {
+  static String appName = 'ALMCO Work Tracker';
+  static bool gpsRequired = true;
+  static bool notificationsEnabled = true;
+
+  static final users = [
+    {'name': 'Hamada', 'role': 'admin'},
+    {'name': 'Eng Usama', 'role': 'engineer'},
+    {'name': 'Foreman Abdul Rady', 'role': 'foreman'},
+    {'name': 'Foreman Galal', 'role': 'foreman'},
+    {'name': 'Foreman Tanzil', 'role': 'foreman'},
+    {'name': 'Foreman Hamada', 'role': 'foreman'},
+  ];
+
+  static final sites = [
+    Site('Adek', ['School 1 / Zone 1', 'School 1 / Zone 2', 'School 1 / Zone 3', 'School 1 / Zone 4', 'School 1 / Service Block', 'School 2 / Zone 1', 'School 2 / Zone 2', 'School 2 / Zone 3', 'School 2 / Zone 4', 'School 2 / Service Block']),
+    Site('Grove', ['Zone 10', 'Zone 11']),
+    Site('Lagoon Villa', ['Cluster / Block / Villa']),
+    Site('Khalifa University', ['Zone 1', 'Zone 2', 'Zone 3', 'Zone 4', 'Zone 5']),
+    Site('Museum Guggenheim', ['General']),
+  ];
+
+  static final activities = <String, List<String>>{
+    'Waterproof': ['Primer', 'First Coat', 'Second Coat'],
+    'Painting': ['Primer', 'First Coat Stucco', 'Second Coat Stucco', 'First Coat Paint', 'Final Paint'],
+  };
+
+  static final reports = <WorkReport>[];
+  static final documents = <ProjectDocument>[];
+}
+
+class Site {
+  final String name;
+  final List<String> locations;
+  Site(this.name, this.locations);
+}
+
+class WorkReport {
+  String site;
+  String location;
+  String activity;
+  List<String> layers;
+  bool completed;
+  bool draft;
+  String description;
+  String user;
+  DateTime date;
+  double? latitude;
+  double? longitude;
+  double? gpsAccuracy;
+  WorkReport({
+    required this.site,
+    required this.location,
+    required this.activity,
+    required this.layers,
+    required this.completed,
+    required this.draft,
+    required this.description,
+    required this.user,
+    required this.date,
+    this.latitude,
+    this.longitude,
+    this.gpsAccuracy,
+  });
+}
+
+class ProjectDocument {
+  String site;
+  String name;
+  String type;
+  String status;
+  DateTime date;
+  ProjectDocument({required this.site, required this.name, required this.type, required this.status, required this.date});
+}
+
+class DashboardScreen extends StatefulWidget {
+  final void Function(Locale) onLanguageChanged;
+  const DashboardScreen({super.key, required this.onLanguageChanged});
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  bool isArabic = false;
+
+  String t(String en, String ar) => isArabic ? ar : en;
+
+  @override
+  Widget build(BuildContext context) {
+    final submittedReports = AppData.reports.where((r) => !r.draft).length;
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(AppData.appName),
+        actions: [
+          TextButton(
+            onPressed: () {
+              setState(() => isArabic = !isArabic);
+              widget.onLanguageChanged(Locale(isArabic ? 'ar' : 'en'));
+            },
+            child: Text(isArabic ? 'English' : 'عربي'),
+          ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          _HeaderCard(t: t),
+          const SizedBox(height: 16),
+          Row(children: [
+            Expanded(child: _StatCard(title: t('Submitted Reports', 'التقارير المرسلة'), value: '$submittedReports')),
+            const SizedBox(width: 12),
+            Expanded(child: _StatCard(title: t('Sites', 'المواقع'), value: '${AppData.sites.length}')),
+          ]),
+          const SizedBox(height: 16),
+          FilledButton.icon(onPressed: () async { await Navigator.push(context, MaterialPageRoute(builder: (_) => const AddReportScreen())); setState(() {}); }, icon: const Icon(Icons.add), label: Text(t('New Report', 'تقرير جديد'))),
+          OutlinedButton.icon(onPressed: () async { await Navigator.push(context, MaterialPageRoute(builder: (_) => const ReportsScreen())); setState(() {}); }, icon: const Icon(Icons.list_alt), label: Text(t('Reports', 'التقارير'))),
+          OutlinedButton.icon(onPressed: () async { await Navigator.push(context, MaterialPageRoute(builder: (_) => const DocumentsScreen())); setState(() {}); }, icon: const Icon(Icons.folder), label: Text(t('Approved Documents', 'المستندات المعتمدة'))),
+          OutlinedButton.icon(onPressed: () async { await Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminScreen())); setState(() {}); }, icon: const Icon(Icons.admin_panel_settings), label: Text(t('Admin Settings', 'إعدادات المدير'))),
+          const SizedBox(height: 18),
+          Text(t('Progress by Site', 'نسبة الإنجاز لكل موقع'), style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 8),
+          ...AppData.sites.map((s) => _ProgressTile(site: s.name)),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeaderCard extends StatelessWidget {
+  final String Function(String, String) t;
+  const _HeaderCard({required this.t});
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Row(children: [
+          Image.asset('assets/logo.png', width: 70, height: 70, errorBuilder: (_, __, ___) => const Icon(Icons.business, size: 60)),
+          const SizedBox(width: 16),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(AppData.appName, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            Text(t('Construction reports, approvals, documents and progress tracking.', 'تقارير الأعمال والاعتمادات والمستندات ونسب الإنجاز.')),
+          ]))
+        ]),
+      ),
+    );
+  }
+}
+
+class _StatCard extends StatelessWidget {
+  final String title;
+  final String value;
+  const _StatCard({required this.title, required this.value});
+  @override
+  Widget build(BuildContext context) => Card(elevation: 0, child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title), Text(value, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold))])));
+}
+
+class _ProgressTile extends StatelessWidget {
+  final String site;
+  const _ProgressTile({required this.site});
+  @override
+  Widget build(BuildContext context) {
+    final siteReports = AppData.reports.where((r) => r.site == site && !r.draft).toList();
+    final completed = siteReports.where((r) => r.completed).length;
+    final progress = siteReports.isEmpty ? 0.0 : completed / siteReports.length;
+    return Card(elevation: 0, child: ListTile(title: Text(site), subtitle: LinearProgressIndicator(value: progress), trailing: Text('${(progress * 100).round()}%')));
+  }
+}
+
+class AddReportScreen extends StatefulWidget { const AddReportScreen({super.key}); @override State<AddReportScreen> createState() => _AddReportScreenState(); }
+class _AddReportScreenState extends State<AddReportScreen> {
+  String site = AppData.sites.first.name;
+  String location = AppData.sites.first.locations.first;
+  String activity = AppData.activities.keys.first;
+  final selectedLayers = <String>{};
+  bool completed = false;
+  final description = TextEditingController();
+  LocationResult? gps;
+  bool capturingGps = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final currentSite = AppData.sites.firstWhere((s) => s.name == site);
+    final layers = AppData.activities[activity] ?? [];
+    return Scaffold(
+      appBar: AppBar(title: const Text('New Report')),
+      body: ListView(padding: const EdgeInsets.all(16), children: [
+        DropdownButtonFormField(value: site, decoration: const InputDecoration(labelText: 'Site'), items: AppData.sites.map((s) => DropdownMenuItem(value: s.name, child: Text(s.name))).toList(), onChanged: (v) => setState(() { site = v!; location = AppData.sites.firstWhere((s) => s.name == site).locations.first; })),
+        const SizedBox(height: 12),
+        if (site == 'Lagoon Villa') ...[
+          TextFormField(decoration: const InputDecoration(labelText: 'Cluster No')),
+          TextFormField(decoration: const InputDecoration(labelText: 'Block No')),
+          TextFormField(decoration: const InputDecoration(labelText: 'Villa No')),
+        ] else DropdownButtonFormField(value: location, decoration: const InputDecoration(labelText: 'Location / Zone'), items: currentSite.locations.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(), onChanged: (v) => setState(() => location = v!)),
+        const SizedBox(height: 12),
+        DropdownButtonFormField(value: activity, decoration: const InputDecoration(labelText: 'Activity'), items: AppData.activities.keys.map((a) => DropdownMenuItem(value: a, child: Text(a))).toList(), onChanged: (v) => setState(() { activity = v!; selectedLayers.clear(); })),
+        const SizedBox(height: 12),
+        Text('Layers', style: Theme.of(context).textTheme.titleMedium),
+        ...layers.map((l) => CheckboxListTile(title: Text(l), value: selectedLayers.contains(l), onChanged: (v) => setState(() => v == true ? selectedLayers.add(l) : selectedLayers.remove(l)))),
+        CheckboxListTile(title: const Text('Completed'), value: completed, onChanged: (v) => setState(() => completed = v ?? false)),
+        TextField(controller: description, maxLines: 4, decoration: const InputDecoration(labelText: 'Description')),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(onPressed: () {}, icon: const Icon(Icons.photo_library), label: const Text('Add Multiple Photos')),
+        OutlinedButton.icon(onPressed: () {}, icon: const Icon(Icons.draw), label: const Text('Add Signature')),
+        OutlinedButton.icon(
+          onPressed: capturingGps ? null : _captureGps,
+          icon: const Icon(Icons.location_on),
+          label: Text(gps == null ? 'Capture GPS Location' : 'GPS Captured: ${gps!.latitude.toStringAsFixed(5)}, ${gps!.longitude.toStringAsFixed(5)}'),
+        ),
+        const SizedBox(height: 12),
+        Row(children: [
+          Expanded(child: OutlinedButton(onPressed: () => _save(true), child: const Text('Save Draft'))),
+          const SizedBox(width: 12),
+          Expanded(child: FilledButton(onPressed: () => _save(false), child: const Text('Submit'))),
+        ])
+      ]),
+    );
+  }
+  Future<void> _captureGps() async {
+    setState(() => capturingGps = true);
+    final result = await LocationService.instance.captureCurrentLocation();
+    setState(() { gps = result; capturingGps = false; });
+    if (result == null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('GPS permission or location service is not enabled')));
+    }
+  }
+
+  void _save(bool draft) {
+    if (AppData.gpsRequired && gps == null && !draft) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please capture GPS before submitting')));
+      return;
+    }
+    final report = WorkReport(
+      site: site,
+      location: location,
+      activity: activity,
+      layers: selectedLayers.toList(),
+      completed: completed,
+      draft: draft,
+      description: description.text,
+      user: 'Hamada',
+      date: DateTime.now(),
+      latitude: gps?.latitude,
+      longitude: gps?.longitude,
+      gpsAccuracy: gps?.accuracy,
+    );
+    AppData.reports.add(report);
+    FirebaseService.instance.saveReport({
+      'site': report.site,
+      'location': report.location,
+      'activity': report.activity,
+      'layers': report.layers,
+      'completed': report.completed,
+      'draft': report.draft,
+      'description': report.description,
+      'user': report.user,
+      'gps': gps?.toMap(),
+      'notificationRequired': AppData.notificationsEnabled && !draft,
+    });
+    Navigator.pop(context);
+  }
+}
+
+class ReportsScreen extends StatelessWidget { const ReportsScreen({super.key}); @override Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: const Text('Reports')), body: ListView(padding: const EdgeInsets.all(16), children: AppData.reports.map((r) => Card(elevation: 0, child: ListTile(title: Text('${r.site} - ${r.activity}'), subtitle: Text('${r.location}\n${r.layers.join(', ')}\n${r.draft ? 'Draft' : r.completed ? 'Completed' : 'Submitted'}${r.latitude == null ? '' : '\nGPS: ${r.latitude!.toStringAsFixed(5)}, ${r.longitude!.toStringAsFixed(5)}'}'), isThreeLine: true, trailing: IconButton(icon: const Icon(Icons.print), onPressed: () {})))).toList())); }
+
+class DocumentsScreen extends StatefulWidget { const DocumentsScreen({super.key}); @override State<DocumentsScreen> createState() => _DocumentsScreenState(); }
+class _DocumentsScreenState extends State<DocumentsScreen> {
+  String site = AppData.sites.first.name;
+  final name = TextEditingController();
+  String type = 'Drawing';
+  @override Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: const Text('Approved Documents')), body: ListView(padding: const EdgeInsets.all(16), children: [
+    DropdownButtonFormField(value: site, decoration: const InputDecoration(labelText: 'Site'), items: AppData.sites.map((s) => DropdownMenuItem(value: s.name, child: Text(s.name))).toList(), onChanged: (v) => setState(() => site = v!)),
+    TextField(controller: name, decoration: const InputDecoration(labelText: 'Document Name')),
+    DropdownButtonFormField(value: type, decoration: const InputDecoration(labelText: 'Document Type'), items: ['Drawing','Approval','Method Statement','Payment Support','Other'].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(), onChanged: (v) => setState(() => type = v!)),
+    const SizedBox(height: 8),
+    OutlinedButton.icon(onPressed: () {}, icon: const Icon(Icons.attach_file), label: const Text('Upload PDF / Images')),
+    FilledButton(onPressed: () { AppData.documents.add(ProjectDocument(site: site, name: name.text, type: type, status: 'Pending', date: DateTime.now())); setState(() {}); }, child: const Text('Save Document')),
+    const Divider(),
+    ...AppData.documents.map((d) => Card(elevation: 0, child: ListTile(title: Text(d.name), subtitle: Text('${d.site} - ${d.type}'), trailing: Chip(label: Text(d.status))))),
+  ]));
+}
+
+class AdminScreen extends StatefulWidget { const AdminScreen({super.key}); @override State<AdminScreen> createState() => _AdminScreenState(); }
+class _AdminScreenState extends State<AdminScreen> {
+  final appNameController = TextEditingController(text: AppData.appName);
+  final newActivity = TextEditingController();
+  final newLayer = TextEditingController();
+  String selectedActivity = AppData.activities.keys.first;
+  @override Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: const Text('Admin Settings')), body: ListView(padding: const EdgeInsets.all(16), children: [
+    const Text('Everything here is dynamic and should be connected to Firebase in production.', style: TextStyle(fontWeight: FontWeight.bold)),
+    const SizedBox(height: 16),
+    Text('Application Name', style: Theme.of(context).textTheme.titleLarge),
+    TextField(controller: appNameController, decoration: const InputDecoration(labelText: 'App Name')),
+    FilledButton.icon(
+      onPressed: () {
+        if (appNameController.text.trim().isNotEmpty) {
+          setState(() => AppData.appName = appNameController.text.trim());
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('App name updated')));
+        }
+      },
+      icon: const Icon(Icons.save),
+      label: const Text('Save App Name'),
+    ),
+    const Divider(),
+    SwitchListTile(title: const Text('Require GPS before submit'), value: AppData.gpsRequired, onChanged: (v) => setState(() => AppData.gpsRequired = v)),
+    SwitchListTile(title: const Text('Enable admin notifications'), value: AppData.notificationsEnabled, onChanged: (v) => setState(() => AppData.notificationsEnabled = v)),
+    const Divider(),
+    Text('Users', style: Theme.of(context).textTheme.titleLarge),
+    ...AppData.users.map((u) => ListTile(title: Text(u['name']!), subtitle: Text(u['role']!))),
+    const Divider(),
+    Text('Activities & Layers', style: Theme.of(context).textTheme.titleLarge),
+    DropdownButtonFormField(value: selectedActivity, items: AppData.activities.keys.map((a) => DropdownMenuItem(value: a, child: Text(a))).toList(), onChanged: (v) => setState(() => selectedActivity = v!)),
+    ...?AppData.activities[selectedActivity]?.map((l) => ListTile(title: Text(l), trailing: IconButton(icon: const Icon(Icons.delete), onPressed: () => setState(() => AppData.activities[selectedActivity]!.remove(l))))),
+    TextField(controller: newLayer, decoration: const InputDecoration(labelText: 'New Layer Name')),
+    FilledButton(onPressed: () { if(newLayer.text.trim().isNotEmpty) AppData.activities[selectedActivity]!.add(newLayer.text.trim()); newLayer.clear(); setState(() {}); }, child: const Text('Add Layer')),
+    const Divider(),
+    TextField(controller: newActivity, decoration: const InputDecoration(labelText: 'New Activity Name')),
+    FilledButton(onPressed: () { if(newActivity.text.trim().isNotEmpty) AppData.activities[newActivity.text.trim()] = []; selectedActivity = newActivity.text.trim(); newActivity.clear(); setState(() {}); }, child: const Text('Add Activity')),
+  ]));
+}

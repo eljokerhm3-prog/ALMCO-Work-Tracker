@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1064134004749",
+    "project_id": "almco-work-tracker",
+    "storage_bucket": "almco-work-tracker.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1064134004749:android:f89b0041b697aa166c4544",
+        "android_client_info": {
+          "package_name": "com.almco.worktracker"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD9YSV-_zZ_QQ2S3YqTPUdF7Sj_uMftXqw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
