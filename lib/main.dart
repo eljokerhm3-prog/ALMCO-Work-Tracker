@@ -5,12 +5,17 @@ import 'firebase_service.dart';
 import 'location_service.dart';
 import 'notification_service.dart';
 
-Future<void> main() async {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  await FirebaseService.instance.seedInitialData();
-  await NotificationService.instance.setupForUser(userId: 'hamada-admin');
+
+  try {
+    await Firebase.initializeApp();
+  } catch (e) {
+    debugPrint('Firebase init error: $e');
+  }
+
   runApp(const ALMCOApp());
+}
 }
 
 class ALMCOApp extends StatefulWidget {
