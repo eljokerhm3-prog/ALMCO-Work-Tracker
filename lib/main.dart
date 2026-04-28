@@ -5,7 +5,7 @@ import 'firebase_service.dart';
 import 'location_service.dart';
 import 'notification_service.dart';
 
-void main() async {
+void main() async 
   WidgetsFlutterBinding.ensureInitialized();
 
   try {
